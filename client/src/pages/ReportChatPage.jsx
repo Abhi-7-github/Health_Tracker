@@ -35,6 +35,16 @@ function calcBmi(heightCm, weightKg) {
   return Number((weightKg / (heightM * heightM)).toFixed(1));
 }
 
+function getHealthStatusColor(status) {
+  const colors = {
+    Fever: "#c64b3c",
+    "High BP": "#b26a2f",
+    "High Sugar": "#b0538f",
+    Normal: "#3a6ea5",
+  };
+  return colors[status] || "#6b6b6b";
+}
+
 function HealthPieChart({ today }) {
   const stepsPct = clamp01((today?.stepsToday || 0) / 10000) * 100;
   const sleepPct = clamp01((today?.sleepHours || 0) / 8) * 100;
@@ -107,6 +117,38 @@ function ImprovementChart({ history }) {
   );
 }
 
+function EmotionalTrendChart({ history }) {
+  const scores = history.map((entry) => Number(entry.emotionalScore) || 0);
+  const hasScores = scores.some((value) => value > 0);
+  if (!hasScores) {
+    return (
+      <div className="chart-card">
+        <h3>Emotional Trend</h3>
+        <p className="chart-detail">Submit emotional check-ins to see the trend.</p>
+      </div>
+    );
+  }
+
+  const maxScore = Math.max(...scores, 1);
+  const points = scores
+    .map((score, index) => {
+      const x = scores.length === 1 ? 50 : (index / (scores.length - 1)) * 100;
+      const y = 100 - (score / maxScore) * 100;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  return (
+    <div className="chart-card">
+      <h3>Emotional Trend</h3>
+      <svg className="line-chart" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Emotional score trend">
+        <polyline points={points} fill="none" stroke="#4f7d6a" strokeWidth="3" />
+      </svg>
+      <p className="chart-detail">Latest score: {scores[scores.length - 1] || 0}</p>
+    </div>
+  );
+}
+
 function ReportChatPage() {
   const navigate = useNavigate();
   const [history, setHistory] = useState([]);
@@ -123,6 +165,9 @@ function ReportChatPage() {
         stepsToday: toNum(input.stepsToday),
         sleepHours: toNum(input.sleepHours),
         bmi: toNum(stored.bmi) || calcBmi(toNum(input.height), toNum(input.weight)),
+        healthStatus: stored.healthStatus || "",
+        emotionalState: stored.emotionalState || "",
+        emotionalScore: toNum(stored.emotionalScore),
         wellnessScore: 0,
       };
     } catch {
@@ -155,6 +200,9 @@ function ReportChatPage() {
             stepsToday: toNum(latestReportData.stepsToday),
             sleepHours: toNum(latestReportData.sleepHours),
             bmi: toNum(latestReportData.bmi),
+            healthStatus: latestReportData.healthStatus || "",
+            emotionalState: latestReportData.emotionalState || "",
+            emotionalScore: toNum(latestReportData.emotionalScore),
             wellnessScore: 0,
           });
         }
@@ -164,6 +212,9 @@ function ReportChatPage() {
           stepsToday: toNum(dashboardData.stepsToday),
           sleepHours: toNum(dashboardData.sleepHours),
           bmi: calcBmi(toNum(dashboardData.height), toNum(dashboardData.weight)),
+          healthStatus: dashboardData.healthStatus || "",
+          emotionalState: dashboardData.emotionalState || "",
+          emotionalScore: toNum(dashboardData.emotionalScore),
           wellnessScore: 0,
         });
 
@@ -187,6 +238,9 @@ function ReportChatPage() {
         stepsToday: toNum(fallbackFromReport.stepsToday) || toNum(dbFallback?.stepsToday) || toNum(dashboardSnapshot?.stepsToday),
         sleepHours: toNum(fallbackFromReport.sleepHours) || toNum(dbFallback?.sleepHours) || toNum(dashboardSnapshot?.sleepHours),
         bmi: toNum(fallbackFromReport.bmi) || toNum(dbFallback?.bmi) || toNum(dashboardSnapshot?.bmi),
+        healthStatus: fallbackFromReport.healthStatus || dbFallback?.healthStatus || dashboardSnapshot?.healthStatus || "",
+        emotionalState: fallbackFromReport.emotionalState || dbFallback?.emotionalState || dashboardSnapshot?.emotionalState || "",
+        emotionalScore: toNum(fallbackFromReport.emotionalScore) || toNum(dbFallback?.emotionalScore) || toNum(dashboardSnapshot?.emotionalScore),
       };
     }
 
@@ -211,6 +265,23 @@ function ReportChatPage() {
         toNum(fallbackFromReport?.sleepHours) ||
         toNum(dashboardSnapshot?.sleepHours),
       bmi: toNum(todayFromHistory.bmi) || toNum(dbFallback?.bmi) || toNum(fallbackFromReport?.bmi) || toNum(dashboardSnapshot?.bmi),
+      healthStatus:
+        todayFromHistory.healthStatus ||
+        dbFallback?.healthStatus ||
+        fallbackFromReport?.healthStatus ||
+        dashboardSnapshot?.healthStatus ||
+        "",
+      emotionalState:
+        todayFromHistory.emotionalState ||
+        dbFallback?.emotionalState ||
+        fallbackFromReport?.emotionalState ||
+        dashboardSnapshot?.emotionalState ||
+        "",
+      emotionalScore:
+        toNum(todayFromHistory.emotionalScore) ||
+        toNum(dbFallback?.emotionalScore) ||
+        toNum(fallbackFromReport?.emotionalScore) ||
+        toNum(dashboardSnapshot?.emotionalScore),
     };
   }, [history, fallbackFromReport, dashboardSnapshot, latestReportFromDb]);
 
@@ -234,6 +305,14 @@ function ReportChatPage() {
           <div className="charts-grid">
             <HealthPieChart today={today} />
             <ImprovementChart history={graphHistory} />
+            <div className="chart-card">
+              <h3>Health Status</h3>
+              <div className="status-pill" style={{ background: getHealthStatusColor(today?.healthStatus) }}>
+                {today?.healthStatus || "N/A"}
+              </div>
+              <p className="chart-detail">Emotional State: {today?.emotionalState || "N/A"}</p>
+            </div>
+            <EmotionalTrendChart history={graphHistory} />
           </div>
         ) : null}
 

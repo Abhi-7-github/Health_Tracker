@@ -1,28 +1,17 @@
 const express = require("express");
-const jwt = require("jsonwebtoken");
+const authenticate = require("../middleware/authenticate");
 const Dashboard = require("../models/Dashboard");
 const DashboardHistory = require("../models/DashboardHistory");
+const EmotionRecord = require("../models/EmotionRecord");
 const Report = require("../models/Report");
+const {
+  detectHealthStatus,
+  generateTips,
+  getMedicineAdvice,
+  medicineDisclaimer,
+} = require("../utils/healthUtils");
 
 const router = express.Router();
-
-function authenticate(req, res, next) {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "Authorization token missing" });
-  }
-
-  const token = authHeader.split(" ")[1];
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "dev_jwt_secret");
-    req.user = decoded;
-    return next();
-  } catch (error) {
-    return res.status(401).json({ message: "Invalid or expired token" });
-  }
-}
 
 function toNumber(value) {
   const parsed = Number(value);
@@ -130,6 +119,8 @@ router.get("/", authenticate, async (req, res) => {
     const dashboard = await Dashboard.findOne({ userId: req.user.userId });
 
     if (!dashboard) {
+      const tips = generateTips({ healthStatus: "Normal", emotionalState: "Good" });
+      const medicines = getMedicineAdvice("Normal");
       return res.status(200).json({
         data: {
           age: 0,
@@ -137,11 +128,32 @@ router.get("/", authenticate, async (req, res) => {
           weight: 0,
           stepsToday: 0,
           sleepHours: 0,
+          temperature: 0,
+          bpSystolic: 0,
+          bpDiastolic: 0,
+          sugarLevel: 0,
+          healthStatus: "Normal",
+          emotionalScore: 0,
+          emotionalState: "Good",
         },
+        tips,
+        medicines,
+        medicineDisclaimer,
       });
     }
 
-    return res.status(200).json({ data: dashboard });
+    const tips = generateTips({
+      healthStatus: dashboard.healthStatus,
+      emotionalState: dashboard.emotionalState,
+    });
+    const medicines = getMedicineAdvice(dashboard.healthStatus);
+
+    return res.status(200).json({
+      data: dashboard,
+      tips,
+      medicines,
+      medicineDisclaimer,
+    });
   } catch (error) {
     return res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -162,13 +174,32 @@ router.post("/generate", authenticate, async (req, res) => {
       weight: toNumber(req.body.weight),
       stepsToday: toNumber(req.body.stepsToday),
       sleepHours: toNumber(req.body.sleepHours),
+      temperature: toNumber(req.body.temperature),
+      bpSystolic: toNumber(req.body.bpSystolic),
+      bpDiastolic: toNumber(req.body.bpDiastolic),
+      sugarLevel: toNumber(req.body.sugarLevel),
     };
+
+    const healthStatus = detectHealthStatus(payload);
 
     const dashboard = await Dashboard.findOneAndUpdate(
       { userId: req.user.userId },
-      { userId: req.user.userId, ...payload },
+      { userId: req.user.userId, ...payload, healthStatus },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
+
+    const latestEmotion = await EmotionRecord.findOne({ userId: req.user.userId })
+      .sort({ createdAt: -1 })
+      .lean();
+    const emotionalState = latestEmotion?.emotionalState || dashboard.emotionalState || "Good";
+    const emotionalScore = latestEmotion?.totalScore || dashboard.emotionalScore || 0;
+
+    if (latestEmotion && (dashboard.emotionalState !== emotionalState || dashboard.emotionalScore !== emotionalScore)) {
+      await Dashboard.updateOne(
+        { _id: dashboard._id },
+        { $set: { emotionalState, emotionalScore } }
+      );
+    }
 
     const suggestions = [];
     const bmi = calculateBmi(dashboard.weight, dashboard.height);
@@ -185,8 +216,15 @@ router.post("/generate", authenticate, async (req, res) => {
         weight: dashboard.weight,
         stepsToday: dashboard.stepsToday,
         sleepHours: dashboard.sleepHours,
+        temperature: dashboard.temperature,
+        bpSystolic: dashboard.bpSystolic,
+        bpDiastolic: dashboard.bpDiastolic,
+        sugarLevel: dashboard.sugarLevel,
         bmi,
         wellnessScore,
+        healthStatus,
+        emotionalScore,
+        emotionalState,
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
@@ -195,11 +233,20 @@ router.post("/generate", authenticate, async (req, res) => {
     if (dashboard.sleepHours < 7) suggestions.push("Aim for 7 to 8 hours of sleep.");
     if (dashboard.weight > 0 && dashboard.height > 0) suggestions.push("Keep tracking weekly progress for stable results.");
 
+    const tips = generateTips({ healthStatus, emotionalState });
+    const medicines = getMedicineAdvice(healthStatus);
+
     return res.status(200).json({
       message: "Health details generated successfully",
       data: dashboard,
       bmi,
       wellnessScore,
+      healthStatus,
+      emotionalState,
+      emotionalScore,
+      tips,
+      medicines,
+      medicineDisclaimer,
       suggestions: suggestions.length ? suggestions : ["Great consistency. Keep going."],
     });
   } catch (error) {
@@ -237,19 +284,25 @@ router.post("/plan", authenticate, async (req, res) => {
       weight: toNumber(req.body.weight),
       stepsToday: toNumber(req.body.stepsToday),
       sleepHours: toNumber(req.body.sleepHours),
+      temperature: toNumber(req.body.temperature),
+      bpSystolic: toNumber(req.body.bpSystolic),
+      bpDiastolic: toNumber(req.body.bpDiastolic),
+      sugarLevel: toNumber(req.body.sugarLevel),
     };
 
-    if (!payload.height || !payload.weight) {
-      const dashboard = await Dashboard.findOne({ userId: req.user.userId });
-      if (dashboard) {
-        payload = {
-          age: payload.age || dashboard.age,
-          height: payload.height || dashboard.height,
-          weight: payload.weight || dashboard.weight,
-          stepsToday: payload.stepsToday || dashboard.stepsToday,
-          sleepHours: payload.sleepHours || dashboard.sleepHours,
-        };
-      }
+    const dashboard = await Dashboard.findOne({ userId: req.user.userId });
+    if (dashboard) {
+      payload = {
+        age: payload.age || dashboard.age,
+        height: payload.height || dashboard.height,
+        weight: payload.weight || dashboard.weight,
+        stepsToday: payload.stepsToday || dashboard.stepsToday,
+        sleepHours: payload.sleepHours || dashboard.sleepHours,
+        temperature: payload.temperature || dashboard.temperature,
+        bpSystolic: payload.bpSystolic || dashboard.bpSystolic,
+        bpDiastolic: payload.bpDiastolic || dashboard.bpDiastolic,
+        sugarLevel: payload.sugarLevel || dashboard.sugarLevel,
+      };
     }
 
     if (!payload.height || !payload.weight) {
@@ -259,6 +312,14 @@ router.post("/plan", authenticate, async (req, res) => {
     const bmi = calculateBmi(payload.weight, payload.height);
     const bmiCategory = getBmiCategory(bmi);
     const targetCalories = estimateCalories(payload, bmiCategory);
+    const healthStatus = detectHealthStatus(payload);
+    const latestEmotion = await EmotionRecord.findOne({ userId: req.user.userId })
+      .sort({ createdAt: -1 })
+      .lean();
+    const emotionalState = latestEmotion?.emotionalState || dashboard?.emotionalState || "Good";
+    const emotionalScore = latestEmotion?.totalScore || dashboard?.emotionalScore || 0;
+    const tips = generateTips({ healthStatus, emotionalState });
+    const medicines = getMedicineAdvice(healthStatus);
 
     let dietPlan;
     try {
@@ -277,10 +338,20 @@ router.post("/plan", authenticate, async (req, res) => {
         weight: payload.weight,
         stepsToday: payload.stepsToday,
         sleepHours: payload.sleepHours,
+        temperature: payload.temperature,
+        bpSystolic: payload.bpSystolic,
+        bpDiastolic: payload.bpDiastolic,
+        sugarLevel: payload.sugarLevel,
         bmi,
         bmiCategory,
+        healthStatus,
+        emotionalScore,
+        emotionalState,
         targetCalories,
         dietPlan,
+        tips,
+        medicines,
+        medicineDisclaimer,
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
@@ -289,9 +360,15 @@ router.post("/plan", authenticate, async (req, res) => {
       message: "Diet plan generated",
       bmi,
       bmiCategory,
+      healthStatus,
+      emotionalState,
+      emotionalScore,
       targetCalories,
       input: payload,
       dietPlan,
+      tips,
+      medicines,
+      medicineDisclaimer,
     });
   } catch (error) {
     return res.status(500).json({ message: "Server error", error: error.message });

@@ -33,6 +33,22 @@ const reportSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    temperature: {
+      type: Number,
+      default: 0,
+    },
+    bpSystolic: {
+      type: Number,
+      default: 0,
+    },
+    bpDiastolic: {
+      type: Number,
+      default: 0,
+    },
+    sugarLevel: {
+      type: Number,
+      default: 0,
+    },
     bmi: {
       type: Number,
       default: 0,
@@ -41,6 +57,18 @@ const reportSchema = new mongoose.Schema(
       type: String,
       default: "unknown",
     },
+    healthStatus: {
+      type: String,
+      default: "Normal",
+    },
+    emotionalScore: {
+      type: Number,
+      default: 0,
+    },
+    emotionalState: {
+      type: String,
+      default: "Good",
+    },
     targetCalories: {
       type: Number,
       default: 0,
@@ -48,6 +76,18 @@ const reportSchema = new mongoose.Schema(
     dietPlan: {
       type: String,
       default: "",
+    },
+    tips: {
+      type: [String],
+      default: [],
+    },
+    medicines: {
+      type: [String],
+      default: [],
+    },
+    medicineDisclaimer: {
+      type: String,
+      default: "General guidance only, not a prescription.",
     },
   },
   { timestamps: true }

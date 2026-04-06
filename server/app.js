@@ -3,6 +3,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const authRoutes = require("./routes/authRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
+const emotionRoutes = require("./routes/emotionRoutes");
 
 dotenv.config();
 
@@ -13,6 +14,7 @@ app.use(express.json());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/emotion", emotionRoutes);
 
 app.get("/health", (req, res) => {
 	res.status(200).json({ message: "Health Tracker API is running" });

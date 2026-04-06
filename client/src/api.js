@@ -67,3 +67,10 @@ export function fetchLatestReport() {
 		method: "GET",
 	});
 }
+
+export function submitEmotion(payload) {
+	return request("/api/emotion/submit", {
+		method: "POST",
+		body: JSON.stringify(payload),
+	});
+}
