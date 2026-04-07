@@ -83,7 +83,17 @@ function ReportPage() {
 
           {!status.loading && !status.error ? (
             <div className="report-status-grid">
-              <div className={report.healthStatus ? `status-badge ${report.healthStatus.replace(/\s/g, "-").toLowerCase()}` : "status-badge"}>
+              <div
+                className={
+                  report.healthStatus
+                    ? `status-badge ${String(report.healthStatus)
+                        .trim()
+                        .toLowerCase()
+                        .replace(/\s+/g, "-")
+                        .replace(/[^a-z0-9_-]/g, "-")}`
+                    : "status-badge"
+                }
+              >
                 Health Status: {report.healthStatus || "N/A"}
               </div>
               <div className="status-note">Emotional State: {report.emotionalState || "N/A"}</div>
