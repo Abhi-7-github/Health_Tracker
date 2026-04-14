@@ -7,6 +7,9 @@ function getSmtpConfig() {
 		port: Number(process.env.SMTP_PORT || 587),
 		secure: String(process.env.SMTP_SECURE || "").toLowerCase() === "true",
 		requireTLS: String(process.env.SMTP_REQUIRE_TLS || "").toLowerCase() === "true" || Number(process.env.SMTP_PORT || 587) === 587,
+		connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS || 10000),
+		greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS || 10000),
+		socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS || 10000),
 		auth: process.env.SMTP_USER
 			? {
 				user: process.env.SMTP_USER,
@@ -34,7 +37,6 @@ async function sendMail({ to, subject, text }) {
 	}
 
 	const transporter = nodemailer.createTransport(getSmtpConfig());
-	await transporter.verify();
 
 	return transporter.sendMail({
 		from: process.env.SMTP_FROM,
