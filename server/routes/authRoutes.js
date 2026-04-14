@@ -111,7 +111,11 @@ router.post("/forgot-password", async (req, res) => {
       let mailInfo = null;
 
       if (!mailerConfigured) {
-        mailErrorMessage = "SMTP is not configured (check SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS/SMTP_FROM)";
+        const provider = String(process.env.EMAIL_PROVIDER || "smtp").toLowerCase();
+        mailErrorMessage =
+          provider === "resend"
+            ? "Email provider is not configured (check RESEND_API_KEY and EMAIL_FROM)"
+            : "SMTP is not configured (check SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS/SMTP_FROM)";
         if (inProduction) {
           return res.status(500).json({ message: "Email service is not configured" });
         }
