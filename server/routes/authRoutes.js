@@ -108,6 +108,7 @@ router.post("/forgot-password", async (req, res) => {
       const mailerConfigured = isMailerConfigured();
       let emailSent = false;
       let mailErrorMessage = "";
+      let mailInfo = null;
 
       if (!mailerConfigured) {
         mailErrorMessage = "SMTP is not configured (check SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS/SMTP_FROM)";
@@ -116,12 +117,20 @@ router.post("/forgot-password", async (req, res) => {
         }
       } else {
         try {
-          await sendMail({
+          const info = await sendMail({
             to: user.email,
             subject: "Health Tracker password reset OTP",
             text: `Your password reset OTP is ${otp}. It expires in 10 minutes. If you did not request this, you can ignore this email.`,
           });
           emailSent = true;
+          mailInfo = info
+            ? {
+              messageId: info.messageId,
+              accepted: info.accepted,
+              rejected: info.rejected,
+              response: info.response,
+            }
+            : null;
         } catch (mailError) {
           mailErrorMessage = mailError?.message ? String(mailError.message) : "Failed to send email";
           if (inProduction) {
@@ -136,6 +145,9 @@ router.post("/forgot-password", async (req, res) => {
 
       if (!inProduction) {
         response.emailSent = emailSent;
+        if (mailInfo) {
+          response.mailInfo = mailInfo;
+        }
         if (!emailSent && mailErrorMessage) {
           response.mailError = mailErrorMessage;
         }
