@@ -59,7 +59,7 @@ function SignInPage() {
       const successMessage = data.message || "If that email exists, an OTP has been sent.";
       const emailNotSentMessage =
         data?.emailSent === false
-          ? "OTP email was not sent (SMTP not configured or failed). Configure SMTP_* in server/.env and restart the server."
+          ? `OTP email was not sent (SMTP not configured or failed). ${data?.mailError ? `Reason: ${data.mailError}` : ""}`.trim()
           : "";
       setStatus({ loading: false, error: emailNotSentMessage, success: successMessage });
       setResetForm((previous) => ({
