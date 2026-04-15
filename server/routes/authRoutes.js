@@ -7,6 +7,17 @@ const { isMailerConfigured, sendMail } = require("../utils/mailer");
 
 const router = express.Router();
 
+const requirePostMethod = (req, res, next) => {
+  if (req.method === "POST") return next();
+  return res.status(405).json({ message: "Method not allowed. Use POST." });
+};
+
+router.all("/signup", requirePostMethod);
+router.all("/signin", requirePostMethod);
+router.all("/forgot-password", requirePostMethod);
+router.all("/reset-password", requirePostMethod);
+router.all("/verify-reset-otp", requirePostMethod);
+
 router.post("/signup", async (req, res) => {
   try {
     const { name, email, password } = req.body;
