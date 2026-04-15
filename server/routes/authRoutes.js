@@ -8,6 +8,7 @@ const { isMailerConfigured, sendMail } = require("../utils/mailer");
 const router = express.Router();
 
 const requirePostMethod = (req, res, next) => {
+  if (req.method === "OPTIONS") return res.sendStatus(204);
   if (req.method === "POST") return next();
   return res.status(405).json({ message: "Method not allowed. Use POST." });
 };
